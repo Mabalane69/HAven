@@ -32,7 +32,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ currentUser, onUserUpd
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [filterSeverity, setFilterSeverity] = useState<string>('ALL');
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [activeAdminTab, setActiveAdminTab] = useState<'incidents' | 'suggestions'>('incidents');
+  const [accounts, setAccounts] = useState<Array<Pick<UserProfile, 'id' | 'name' | 'email' | 'role' | 'status'>>>([]);
+  const [activeAdminTab, setActiveAdminTab] = useState<'incidents' | 'suggestions' | 'accounts'>('incidents');
 
   useEffect(() => {
     loadAdminData();
@@ -41,14 +42,16 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ currentUser, onUserUpd
   const loadAdminData = async () => {
     setIsLoading(true);
     try {
-      const [reportsData, analyticsData, suggestionsData] = await Promise.all([
+      const [reportsData, analyticsData, suggestionsData, accountsData] = await Promise.all([
         api.getAdminReports(),
         api.getAdminAnalytics(),
         api.getCommunitySuggestions(),
+        api.getAdminUsers(),
       ]);
       setReports(reportsData);
       setAnalytics(analyticsData);
       setSuggestions(suggestionsData);
+      setAccounts(accountsData);
       if (reportsData.length > 0 && !selectedReport) {
         setSelectedReport(reportsData[0]);
       }
@@ -105,18 +108,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ currentUser, onUserUpd
     }
   };
 
-  const handleSimulateAlert = async (type: 'CRISIS' | 'ABUSE') => {
+  const handleRoleChange = async (accountId: string, role: UserProfile['role']) => {
     try {
-      const newReport = await api.simulateAdminAlert(type);
-      setReports([newReport, ...reports]);
-      setSelectedReport(newReport);
-      setStatusMessage(`Simulated live AI ${type} incident flagged in queue.`);
+      const updated = await api.setUserRole(accountId, role);
+      setAccounts((previous) => previous.map((account) => account.id === updated.id ? { ...account, role: updated.role } : account));
+      setStatusMessage(`${updated.name} is now ${updated.role === 'ADMIN' ? 'an administrator' : 'a member'}.`);
       setTimeout(() => setStatusMessage(null), 3000);
-
-      const updatedAnalytics = await api.getAdminAnalytics();
-      setAnalytics(updatedAnalytics);
     } catch (err) {
-      console.error('Simulation error:', err);
+      setStatusMessage(err instanceof Error ? err.message : 'Failed to update account role.');
     }
   };
 
@@ -142,20 +141,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ currentUser, onUserUpd
           </p>
         </div>
 
-        {/* Live Simulation Controls */}
         <div className="flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            onClick={() => handleSimulateAlert('CRISIS')}
-            className="px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-200 border border-rose-800 rounded-lg text-xs font-medium transition-colors"
-          >
-            + Test Crisis Alert (988)
-          </button>
-          <button
-            onClick={() => handleSimulateAlert('ABUSE')}
-            className="px-3 py-1.5 bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-800 rounded-lg text-xs font-medium transition-colors"
-          >
-            + Test Abusive Harassment Alert
-          </button>
           <button
             onClick={loadAdminData}
             title="Refresh Data"
@@ -242,7 +228,64 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({ currentUser, onUserUpd
             {suggestions.filter((s) => s.status === 'PENDING').length}
           </span>
         </button>
+        <button
+          onClick={() => setActiveAdminTab('accounts')}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-colors ${
+            activeAdminTab === 'accounts'
+              ? 'bg-stone-900 text-white shadow-xs'
+              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+          }`}
+        >
+          Accounts ({accounts.length})
+        </button>
       </div>
+
+      {activeAdminTab === 'accounts' && (
+        <section className="space-y-4">
+          <div>
+            <h3 className="text-sm font-bold text-stone-900 font-serif">Account access</h3>
+            <p className="text-xs text-stone-500">Promote trusted accounts to administrators. Admin roles are not available during public signup.</p>
+          </div>
+          <div className="overflow-x-auto bg-white border border-stone-200 rounded-2xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-stone-50 text-stone-500">
+                <tr>
+                  <th className="p-3 font-semibold">Name</th>
+                  <th className="p-3 font-semibold">Email</th>
+                  <th className="p-3 font-semibold">Status</th>
+                  <th className="p-3 font-semibold">Role</th>
+                  <th className="p-3 font-semibold">Access</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accounts.map((account) => (
+                  <tr key={account.id} className="border-t border-stone-100">
+                    <td className="p-3 font-medium text-stone-900">{account.name}</td>
+                    <td className="p-3 text-stone-600">{account.email}</td>
+                    <td className="p-3 text-stone-600">{account.status}</td>
+                    <td className="p-3 text-stone-600">{account.role}</td>
+                    <td className="p-3">
+                      {account.id === currentUser.id ? (
+                        <span className="text-stone-400">Current account</span>
+                      ) : (
+                        <button
+                          onClick={() => handleRoleChange(account.id, account.role === 'ADMIN' ? 'USER' : 'ADMIN')}
+                          className="px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium"
+                        >
+                          {account.role === 'ADMIN' ? 'Remove admin' : 'Make admin'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {accounts.length === 0 && (
+                  <tr><td colSpan={5} className="p-8 text-center text-stone-500">No accounts have been created yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* 1. COMMUNITY SUGGESTIONS VIEW */}
       {activeAdminTab === 'suggestions' && (

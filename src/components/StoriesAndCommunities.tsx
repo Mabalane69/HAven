@@ -36,7 +36,7 @@ export const StoriesAndCommunities: React.FC<StoriesAndCommunitiesProps> = ({ us
   const [activeSubTab, setActiveSubTab] = useState<'stories' | 'circles'>('stories');
   const [stories, setStories] = useState<SharedStory[]>([]);
   const [circles, setCircles] = useState<CommunityCircle[]>([]);
-  const [selectedCircleId, setSelectedCircleId] = useState<string>('circle_anxiety');
+  const [selectedCircleId, setSelectedCircleId] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
 
   // Submit Story Modal
@@ -90,6 +90,9 @@ export const StoriesAndCommunities: React.FC<StoriesAndCommunitiesProps> = ({ us
       const [storyData, circleData] = await Promise.all([api.getStories(), api.getCommunities()]);
       setStories(storyData);
       setCircles(circleData);
+      setSelectedCircleId((selected) => circleData.some((circle) => circle.id === selected)
+        ? selected
+        : circleData[0]?.id || '');
     } catch (err) {
       console.error('Load community data error:', err);
     }
@@ -145,9 +148,9 @@ export const StoriesAndCommunities: React.FC<StoriesAndCommunitiesProps> = ({ us
         title: storyTitle,
         category: storyCategory,
         storyType,
-        locationOrVibe: locationOrVibe || 'Cozy outing spot',
+        locationOrVibe,
         authorAlias: isAnonymousStory ? 'Anonymous Friend' : user.name,
-        authorContext: `${user.culturalContext ? 'Multicultural lived experience' : 'Haven community member'}`,
+        authorContext: user.culturalContext || '',
         challenge: storyChallenge,
         turningPoint: storyTurningPoint,
         keyTakeaway: storyTakeaway,
@@ -404,6 +407,18 @@ export const StoriesAndCommunities: React.FC<StoriesAndCommunitiesProps> = ({ us
 
           {/* Stories Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {filteredStories.length === 0 && (
+              <div className="md:col-span-2 p-10 bg-white border border-[#EAE3D9] rounded-2xl text-center space-y-3">
+                <p className="text-sm font-semibold text-[#2A2421]">No stories have been shared yet.</p>
+                <p className="text-xs text-[#6B5E57]">Your community’s stories will appear here when people choose to share them.</p>
+                <button
+                  onClick={() => setIsSubmitStoryOpen(true)}
+                  className="px-4 py-2 bg-[#C86D51] text-white rounded-xl text-xs font-semibold hover:bg-[#B75C42]"
+                >
+                  Share the first story
+                </button>
+              </div>
+            )}
             {filteredStories.map((story) => {
               const isJoined = story.userJoined;
               const commentsOpen = expandedCommentsStoryId === story.id;
@@ -789,7 +804,31 @@ export const StoriesAndCommunities: React.FC<StoriesAndCommunitiesProps> = ({ us
       {/* ============================================================== */}
       {/* 2. COMMUNITY CIRCLES & TOPICS TAB                               */}
       {/* ============================================================== */}
-      {activeSubTab === 'circles' && (
+      {activeSubTab === 'circles' && !activeCircle && (
+        <div className="p-10 bg-white border border-[#EAE3D9] rounded-2xl text-center space-y-3">
+          <h3 className="text-sm font-semibold text-[#2A2421]">No community circles are available yet.</h3>
+          <p className="text-xs text-[#6B5E57]">
+            Approved community topics will appear here. You can suggest one for review{isAdmin ? ' or create a topic as an administrator' : ''}.
+          </p>
+          <div className="flex justify-center gap-2">
+            <button
+              onClick={() => setIsSuggestModalOpen(true)}
+              className="px-4 py-2 bg-[#FAF7F2] border border-[#EAE3D9] text-[#2A2421] rounded-xl text-xs font-semibold"
+            >
+              Suggest a topic
+            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setIsAdminCreateTopicOpen(true)}
+                className="px-4 py-2 bg-[#C86D51] text-white rounded-xl text-xs font-semibold"
+              >
+                Create a topic
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {activeSubTab === 'circles' && activeCircle && (
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
           {/* Left Column: Circles Navigation List & Suggestion / Admin actions */}
           <div className="space-y-4">

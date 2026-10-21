@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, User, Heart, Bell, Shield, Check, Globe } from 'lucide-react';
-import type { UserProfile, Role } from '../types';
+import type { UserProfile } from '../types';
 import { api } from '../services/api';
 
 interface UserProfileModalProps {
@@ -19,9 +19,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [name, setName] = useState<string>(user.name);
   const [pronouns, setPronouns] = useState<string>(user.pronouns || 'they/them');
   const [culturalContext, setCulturalContext] = useState<string>(user.culturalContext || '');
-  const [partnerName, setPartnerName] = useState<string>(user.partnerName || 'Jordan Taylor');
-  const [coupleCode, setCoupleCode] = useState<string>(user.coupleCode || 'HAVEN-8492');
-  const [partnerConnected, setPartnerConnected] = useState<boolean>(user.partnerConnected);
+  const [partnerCode, setPartnerCode] = useState<string>('');
+  const [pairingError, setPairingError] = useState<string | null>(null);
+  const [isPairing, setIsPairing] = useState<boolean>(false);
   const [reminderEnabled, setReminderEnabled] = useState<boolean>(user.reminderEnabled);
   const [reminderTime, setReminderTime] = useState<string>(user.reminderTime || '20:30');
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -39,9 +39,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         name,
         pronouns,
         culturalContext,
-        partnerName,
-        coupleCode,
-        partnerConnected,
         reminderEnabled,
         reminderTime,
       });
@@ -56,12 +53,17 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
-  const handleToggleRole = async () => {
+  const handlePair = async () => {
+    setIsPairing(true);
+    setPairingError(null);
     try {
-      const updated = await api.switchRole();
+      const updated = await api.pairWithPartner(partnerCode);
       onUserUpdate(updated);
+      setPartnerCode('');
     } catch (err) {
-      console.error('Switch role error:', err);
+      setPairingError(err instanceof Error ? err.message : 'Unable to link partner.');
+    } finally {
+      setIsPairing(false);
     }
   };
 
@@ -152,58 +154,43 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
           {/* Couples Pairing Section */}
           <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-1.5 font-semibold text-stone-900">
                 <Heart className="w-4 h-4 text-teal-700" />
-                <span>Couples Link & Partner Settings</span>
+                <span>{user.partnerConnected ? `Linked with ${user.partnerName}` : 'Couples Link'}</span>
               </div>
+              <span className="text-[11px] text-stone-500">{user.partnerConnected ? 'Connected' : 'Not connected'}</span>
+            </div>
+            <div className="space-y-1">
+              <label className="text-stone-600 block">Your invite code</label>
               <input
-                type="checkbox"
-                checked={partnerConnected}
-                onChange={(e) => setPartnerConnected(e.target.checked)}
-                className="w-4 h-4 accent-teal-800 rounded-sm"
+                type="text"
+                readOnly
+                value={user.coupleCode || 'Unavailable'}
+                className="w-full px-3 py-1.5 bg-stone-100 border border-stone-200 rounded-lg text-xs font-mono text-stone-700"
               />
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            {!user.partnerConnected && (
               <div>
-                <label className="text-stone-600 block mb-1">Partner's Name</label>
+                <label className="text-stone-600 block mb-1">Partner's invite code</label>
                 <input
                   type="text"
-                  value={partnerName}
-                  onChange={(e) => setPartnerName(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs text-stone-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-stone-600 block mb-1">Couples Pairing Code</label>
-                <input
-                  type="text"
-                  value={coupleCode}
-                  onChange={(e) => setCoupleCode(e.target.value)}
+                  value={partnerCode}
+                  onChange={(e) => setPartnerCode(e.target.value)}
+                  placeholder="HAVEN-XXXXXX"
                   className="w-full px-3 py-1.5 bg-white border border-stone-200 rounded-lg text-xs font-mono text-stone-900"
                 />
+                {pairingError && <p className="mt-1 text-[11px] text-rose-700">{pairingError}</p>}
+                <button
+                  type="button"
+                  onClick={handlePair}
+                  disabled={isPairing || !partnerCode.trim()}
+                  className="mt-2 px-3 py-1.5 bg-teal-800 text-white rounded-lg text-xs font-medium disabled:opacity-50"
+                >
+                  {isPairing ? 'Linking...' : 'Link partner'}
+                </button>
               </div>
-            </div>
-          </div>
-
-          {/* Role and Status Info */}
-          <div className="p-4 bg-stone-50 border border-stone-200 rounded-xl flex items-center justify-between">
-            <div>
-              <span className="text-stone-400 block text-[11px]">System Role</span>
-              <span className="font-semibold text-stone-900">
-                Current Role: <strong className="font-mono text-teal-800">{user.role}</strong>
-              </span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleToggleRole}
-              className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg text-xs font-medium transition-colors"
-            >
-              Switch to {user.role === 'ADMIN' ? 'User Mode' : 'Admin Mode'}
-            </button>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-stone-100">

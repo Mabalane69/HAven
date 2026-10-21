@@ -21,7 +21,6 @@ export const api = {
     culturalContext?: string;
     coupleCode?: string;
     partnerName?: string;
-    role?: 'USER' | 'ADMIN';
   }): Promise<UserProfile> {
     const res = await fetch('/api/auth/signup', {
       method: 'POST',
@@ -76,9 +75,14 @@ export const api = {
     return data.profile;
   },
 
-  async switchRole(): Promise<UserProfile> {
-    const res = await fetch('/api/profile/switch-role', { method: 'POST' });
+  async pairWithPartner(coupleCode: string): Promise<UserProfile> {
+    const res = await fetch('/api/profile/pair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ coupleCode }),
+    });
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Unable to link partner');
     return data.profile;
   },
 
@@ -93,7 +97,6 @@ export const api = {
     sessionId?: string;
     mode: 'INDIVIDUAL' | 'COUPLE';
     message: string;
-    sender?: 'USER' | 'PARTNER';
   }): Promise<{ reply: ChatMessage; session?: TherapySession; flagged?: boolean; isCrisis?: boolean; isAbuse?: boolean }> {
     const res = await fetch('/api/therapy/chat', {
       method: 'POST',
@@ -342,13 +345,21 @@ export const api = {
     return data.analytics;
   },
 
-  async simulateAdminAlert(type: 'CRISIS' | 'ABUSE'): Promise<ModerationReport> {
-    const res = await fetch('/api/admin/simulate-alert', {
-      method: 'POST',
+  async getAdminUsers(): Promise<Array<Pick<UserProfile, 'id' | 'name' | 'email' | 'role' | 'status'>>> {
+    const res = await fetch('/api/admin/users');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to load accounts');
+    return data.users;
+  },
+
+  async setUserRole(userId: string, role: UserProfile['role']): Promise<Pick<UserProfile, 'id' | 'name' | 'email' | 'role' | 'status'>> {
+    const res = await fetch(`/api/admin/users/${userId}/role`, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type }),
+      body: JSON.stringify({ role }),
     });
     const data = await res.json();
-    return data.report;
+    if (!res.ok) throw new Error(data.error || 'Failed to update account role');
+    return data.user;
   },
 };

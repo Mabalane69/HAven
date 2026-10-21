@@ -27,20 +27,7 @@ export default function App() {
     'therapy' | 'checkin' | 'diary' | 'activities' | 'community' | 'admin'
   >('therapy');
 
-  const [user, setUser] = useState<UserProfile | null>({
-    id: 'usr_7729',
-    name: 'Alex Morgan',
-    email: 'alex.morgan@havenmind.org',
-    pronouns: 'they/them',
-    culturalContext: 'First-generation multicultural family, high-empathy',
-    role: 'USER',
-    status: 'ACTIVE',
-    partnerName: 'Jordan Taylor',
-    partnerConnected: true,
-    coupleCode: 'HAVEN-8492',
-    reminderEnabled: true,
-    reminderTime: '20:30',
-  });
+  const [user, setUser] = useState<UserProfile | null>(null);
 
   const [unreadReportsCount, setUnreadReportsCount] = useState<number>(0);
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -69,9 +56,10 @@ export default function App() {
         }
       }
 
-      // Load in-app notifications
-      const notifs = await api.getNotifications();
-      setNotifications(notifs);
+      if (currentUser) {
+        const notifs = await api.getNotifications();
+        setNotifications(notifs);
+      }
     } catch (err) {
       console.warn('Initial session check error:', err);
     }
@@ -149,111 +137,66 @@ export default function App() {
 
       {/* Main Content Viewport — Extra bottom padding for phones and tablets */}
       <main className="flex-1 pb-24 lg:pb-12">
+        {!user ? (
+          <section className="max-w-xl mx-auto px-4 py-20 text-center space-y-5">
+            <h1 className="text-3xl font-bold font-serif text-[#2A2421]">A space that starts with you</h1>
+            <p className="text-sm text-[#6B5E57] leading-relaxed">
+              Create an account or sign in to keep your check-ins, reflections, and sessions private and available when you return.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => {
+                  setAuthModalMode('signup');
+                  setIsAuthModalOpen(true);
+                }}
+                className="px-5 py-2.5 bg-[#C86D51] text-white rounded-xl text-sm font-semibold hover:bg-[#B75C42] transition-colors"
+              >
+                Create account
+              </button>
+              <button
+                onClick={() => {
+                  setAuthModalMode('login');
+                  setIsAuthModalOpen(true);
+                }}
+                className="px-5 py-2.5 bg-white border border-[#E8DFD5] text-[#2A2421] rounded-xl text-sm font-semibold hover:bg-stone-50 transition-colors"
+              >
+                Sign in
+              </button>
+            </div>
+          </section>
+        ) : (
+          <>
         {activeTab === 'therapy' && (
           <TherapyRoom
-            user={
-              user || {
-                id: 'guest',
-                name: 'Guest Traveler',
-                email: 'guest@havenmind.org',
-                pronouns: 'they/them',
-                culturalContext: 'Guest sanctuary exploration',
-                role: 'USER',
-                status: 'ACTIVE',
-                partnerConnected: false,
-                reminderEnabled: false,
-                reminderTime: '20:30',
-              }
-            }
+            user={user}
             openCrisisModal={() => setIsCrisisModalOpen(true)}
           />
         )}
 
         {activeTab === 'checkin' && (
           <CheckInsAndAnalytics
-            user={
-              user || {
-                id: 'guest',
-                name: 'Guest Traveler',
-                email: 'guest@havenmind.org',
-                pronouns: 'they/them',
-                culturalContext: 'Guest exploration',
-                role: 'USER',
-                status: 'ACTIVE',
-                partnerConnected: false,
-                reminderEnabled: false,
-                reminderTime: '20:30',
-              }
-            }
+            user={user}
             onUserUpdate={(updated) => setUser(updated)}
           />
         )}
 
         {activeTab === 'diary' && (
-          <ConfidentialDiary
-            user={
-              user || {
-                id: 'guest',
-                name: 'Guest Traveler',
-                email: 'guest@havenmind.org',
-                pronouns: 'they/them',
-                culturalContext: 'Guest exploration',
-                role: 'USER',
-                status: 'ACTIVE',
-                partnerConnected: false,
-                reminderEnabled: false,
-                reminderTime: '20:30',
-              }
-            }
-          />
+          <ConfidentialDiary user={user} />
         )}
 
         {activeTab === 'activities' && (
-          <TherapeuticActivities
-            user={
-              user || {
-                id: 'guest',
-                name: 'Guest Traveler',
-                email: 'guest@havenmind.org',
-                pronouns: 'they/them',
-                culturalContext: 'Guest exploration',
-                role: 'USER',
-                status: 'ACTIVE',
-                partnerConnected: false,
-                reminderEnabled: false,
-                reminderTime: '20:30',
-              }
-            }
-          />
+          <TherapeuticActivities user={user} />
         )}
 
         {activeTab === 'community' && (
-          <StoriesAndCommunities
-            user={
-              user || {
-                id: 'guest',
-                name: 'Guest Traveler',
-                email: 'guest@havenmind.org',
-                pronouns: 'they/them',
-                culturalContext: 'Guest exploration',
-                role: 'USER',
-                status: 'ACTIVE',
-                partnerConnected: false,
-                reminderEnabled: false,
-                reminderTime: '20:30',
-              }
-            }
-          />
+          <StoriesAndCommunities user={user} />
         )}
 
         {/* Admin Safety View — Strictly restricted to Administrators */}
         {activeTab === 'admin' && (
           <>
             {isAdmin ? (
-              <AdminPortal
-                currentUser={user!}
-                onUserUpdate={(updated) => setUser(updated)}
-              />
+              <AdminPortal currentUser={user} onUserUpdate={(updated) => setUser(updated)} />
             ) : (
               <div className="max-w-2xl mx-auto px-4 py-16 text-center space-y-4">
                 <div className="w-14 h-14 bg-rose-50 text-rose-700 rounded-2xl flex items-center justify-center mx-auto border border-rose-200">
@@ -280,6 +223,8 @@ export default function App() {
                 </div>
               </div>
             )}
+          </>
+        )}
           </>
         )}
       </main>

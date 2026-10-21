@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   X,
   Lock,
@@ -8,8 +8,6 @@ import {
   Globe,
   ShieldAlert,
   ArrowRight,
-  Sparkles,
-  Users,
 } from 'lucide-react';
 import type { UserProfile } from '../types';
 import { api } from '../services/api';
@@ -31,15 +29,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [name, setName] = useState<string>('');
-  const [pronouns, setPronouns] = useState<string>('they/them');
+  const [pronouns, setPronouns] = useState<string>('');
   const [culturalContext, setCulturalContext] = useState<string>('');
   const [isCouplesAccount, setIsCouplesAccount] = useState<boolean>(false);
   const [partnerName, setPartnerName] = useState<string>('');
   const [coupleCode, setCoupleCode] = useState<string>('');
-  const [isAdminSignup, setIsAdminSignup] = useState<boolean>(false);
-
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setIsLogin(initialMode === 'login');
+      setErrorMessage(null);
+    }
+  }, [initialMode, isOpen]);
 
   if (!isOpen) return null;
 
@@ -62,27 +65,12 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           culturalContext,
           partnerName: isCouplesAccount ? partnerName : undefined,
           coupleCode: isCouplesAccount ? coupleCode : undefined,
-          role: isAdminSignup ? 'ADMIN' : 'USER',
         });
         onAuthSuccess(user);
         onClose();
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'Authentication failed. Please verify your credentials.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleQuickDemoLogin = async (demoEmail: string, demoPass = 'password123') => {
-    setIsLoading(true);
-    setErrorMessage(null);
-    try {
-      const user = await api.login({ email: demoEmail, password: demoPass });
-      onAuthSuccess(user);
-      onClose();
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Demo login failed.');
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +132,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                       required
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Alex Morgan"
+                      placeholder="Your name"
                       className="w-full pl-9 pr-3 py-2 bg-white border border-[#EAE3D9] rounded-xl text-sm text-[#2A2421] placeholder:text-stone-400 focus:outline-hidden focus:ring-2 focus:ring-[#C86D51]"
                     />
                   </div>
@@ -190,7 +178,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                         type="text"
                         value={partnerName}
                         onChange={(e) => setPartnerName(e.target.value)}
-                        placeholder="Partner's Name (e.g. Jordan)"
+                        placeholder="Partner's name"
                         className="w-full px-2.5 py-1.5 bg-white border border-amber-200 rounded-lg text-xs"
                       />
                       <input
@@ -244,6 +232,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <input
                   type="password"
                   required
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
@@ -251,22 +240,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 />
               </div>
             </div>
-
-            {/* Admin checkbox toggle during signup */}
-            {!isLogin && (
-              <div className="flex items-center gap-2 pt-1 text-xs">
-                <input
-                  type="checkbox"
-                  id="adminSignup"
-                  checked={isAdminSignup}
-                  onChange={(e) => setIsAdminSignup(e.target.checked)}
-                  className="w-4 h-4 accent-[#C86D51] rounded-sm cursor-pointer"
-                />
-                <label htmlFor="adminSignup" className="text-stone-700 cursor-pointer">
-                  Register as Clinical Administrator (Grants Admin Safety Access)
-                </label>
-              </div>
-            )}
 
             <button
               type="submit"
@@ -311,41 +284,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             )}
           </div>
 
-          {/* Quick Demo Account Selector */}
-          <div className="pt-4 border-t border-[#EAE3D9] space-y-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-stone-500 block text-center">
-              Or Instant 1-Click Demo Login:
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('alex.morgan@havenmind.org')}
-                className="p-2.5 bg-white border border-[#EAE3D9] rounded-xl hover:border-[#C86D51] text-left transition-colors flex items-center gap-2"
-              >
-                <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-xs shrink-0">
-                  A
-                </div>
-                <div className="truncate">
-                  <div className="font-semibold text-[#2A2421]">Alex Morgan</div>
-                  <div className="text-[10px] text-stone-400">Client (User Role)</div>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickDemoLogin('admin@havenmind.org', 'admin123')}
-                className="p-2.5 bg-white border border-[#EAE3D9] rounded-xl hover:border-rose-400 text-left transition-colors flex items-center gap-2"
-              >
-                <div className="w-6 h-6 rounded-full bg-rose-100 text-rose-800 flex items-center justify-center font-bold text-xs shrink-0">
-                  E
-                </div>
-                <div className="truncate">
-                  <div className="font-semibold text-[#2A2421]">Dr. Elena Vance</div>
-                  <div className="text-[10px] text-rose-600 font-medium">Administrator Role</div>
-                </div>
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     </div>

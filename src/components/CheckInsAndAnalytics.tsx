@@ -25,7 +25,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ReferenceLine,
 } from 'recharts';
 import type { CheckInRecord, UserProfile } from '../types';
 import { api } from '../services/api';
@@ -52,10 +51,10 @@ const FEELINGS_LIST = [
 
 export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user, onUserUpdate }) => {
   const [checkIns, setCheckIns] = useState<CheckInRecord[]>([]);
-  const [score, setScore] = useState<number>(7);
-  const [selectedFeelings, setSelectedFeelings] = useState<string[]>(['Grounded', 'Reflective']);
-  const [stressLevel, setStressLevel] = useState<number>(2);
-  const [sleepHours, setSleepHours] = useState<number>(7.5);
+  const [score, setScore] = useState<number>(5);
+  const [selectedFeelings, setSelectedFeelings] = useState<string[]>([]);
+  const [stressLevel, setStressLevel] = useState<number>(3);
+  const [sleepHours, setSleepHours] = useState<number | ''>('');
   const [gratitude, setGratitude] = useState<string>('');
   const [reflection, setReflection] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -148,6 +147,7 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
 
   const handleCheckInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (sleepHours === '') return;
     setIsSubmitting(true);
     setSubmissionSuccess(false);
 
@@ -158,8 +158,8 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
         moodLabel: descriptor.label,
         feelings: selectedFeelings,
         stressLevel,
-        sleepHours,
-        gratitude: gratitude || 'Taking time to pause and breathe today.',
+        sleepHours: Number(sleepHours),
+        gratitude,
         reflection,
       });
 
@@ -254,27 +254,36 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
   const averageMood =
     checkIns.length > 0
       ? (checkIns.reduce((acc, c) => acc + c.score, 0) / checkIns.length).toFixed(1)
-      : '7.0';
+      : '—';
 
   const averageSleep =
     checkIns.length > 0
       ? (checkIns.reduce((acc, c) => acc + c.sleepHours, 0) / checkIns.length).toFixed(1)
-      : '7.2';
+      : '—';
 
   const averageStress =
     checkIns.length > 0
       ? (checkIns.reduce((acc, c) => acc + c.stressLevel, 0) / checkIns.length).toFixed(1)
-      : '2.4';
+      : '—';
 
   const currentDescriptor = getMoodDescriptor(score);
+  const weeklyCheckIns = checkIns.filter((checkIn) => {
+    const age = Date.now() - new Date(checkIn.date).getTime();
+    return age >= 0 && age < 7 * 24 * 60 * 60 * 1000;
+  });
+  const weeklyCheckInDays = new Set(
+    weeklyCheckIns.map((checkIn) => new Date(checkIn.date).toLocaleDateString())
+  ).size;
+  const weeklyAdherence = Math.round((weeklyCheckInDays / 7) * 100);
 
   // Chronologically sorted entries for the Recharts visualization
   const chartData = useMemo(() => {
     const sorted = [...checkIns].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
-    const sliceCount = chartRange === '7d' ? 7 : 14;
-    const subset = sorted.slice(-sliceCount);
+    const rangeInDays = chartRange === '7d' ? 7 : 14;
+    const cutoff = Date.now() - rangeInDays * 24 * 60 * 60 * 1000;
+    const subset = sorted.filter((item) => new Date(item.date).getTime() >= cutoff);
 
     return subset.map((item) => {
       const d = new Date(item.date);
@@ -354,7 +363,7 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
                     AI Check-In Suggester & Scheduler
                   </h4>
                   <p className="text-[11px] text-[#6B5E57] mt-0.5 leading-relaxed">
-                    Let Harmony evaluate your rhythm and propose today's tailored check-in question, feelings tags, and optimal reminder time.
+                    Get a check-in suggestion based on your recent entries, when available.
                   </p>
                 </div>
               </div>
@@ -488,8 +497,9 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
                   min="0"
                   max="16"
                   step="0.5"
+                  required
                   value={sleepHours}
-                  onChange={(e) => setSleepHours(Number(e.target.value))}
+                  onChange={(e) => setSleepHours(e.target.value === '' ? '' : Number(e.target.value))}
                   className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-900"
                 />
               </div>
@@ -529,7 +539,7 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
                   type="text"
                   value={gratitude}
                   onChange={(e) => setGratitude(e.target.value)}
-                  placeholder="e.g., A warm cup of coffee, a supportive text from Jordan..."
+                  placeholder="e.g., A warm cup of coffee, a supportive text from someone you care about..."
                   className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-900 placeholder:text-stone-400"
                 />
               </div>
@@ -649,11 +659,13 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
           <div className="bg-teal-900 text-white rounded-2xl p-6 shadow-xs space-y-3">
             <h4 className="text-xs uppercase tracking-wider text-teal-200 font-semibold">Consistency Score</h4>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold font-serif tabular-nums">85%</span>
+              <span className="text-3xl font-bold font-serif tabular-nums">{weeklyAdherence}%</span>
               <span className="text-xs text-teal-200">Weekly Adherence</span>
             </div>
             <p className="text-xs text-teal-100/90 leading-relaxed">
-              You’ve checked in 4 times this week. Couples and individuals who record daily reflections show a 40% reduction in escalation cycles.
+              {weeklyCheckIns.length
+                ? `You recorded ${weeklyCheckIns.length} check-in${weeklyCheckIns.length === 1 ? '' : 's'} in the last 7 days.`
+                : 'Your check-in activity from the last 7 days will appear here.'}
             </p>
           </div>
         </div>
@@ -669,11 +681,11 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
             </p>
           </div>
           <div className="flex items-center gap-3 text-xs text-stone-500">
-            <span>Avg Mood: <strong className="text-stone-900 font-mono tabular-nums">{averageMood}/10</strong></span>
+            <span>Avg Mood: <strong className="text-stone-900 font-mono tabular-nums">{checkIns.length ? `${averageMood}/10` : '—'}</strong></span>
             <span>·</span>
-            <span>Avg Sleep: <strong className="text-stone-900 font-mono tabular-nums">{averageSleep}h</strong></span>
+            <span>Avg Sleep: <strong className="text-stone-900 font-mono tabular-nums">{checkIns.length ? `${averageSleep}h` : '—'}</strong></span>
             <span>·</span>
-            <span>Avg Stress: <strong className="text-stone-900 font-mono tabular-nums">{averageStress}/5</strong></span>
+            <span>Avg Stress: <strong className="text-stone-900 font-mono tabular-nums">{checkIns.length ? `${averageStress}/5` : '—'}</strong></span>
           </div>
         </div>
 
@@ -758,7 +770,7 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
                 <div className="font-serif font-bold text-base text-stone-900 tabular-nums">
                   {chartStats.average} / 10
                 </div>
-                <div className="text-[10px] text-stone-500">Grounded stability</div>
+                <div className="text-[10px] text-stone-500">Across {chartData.length} check-ins</div>
               </div>
 
               <div>
@@ -882,21 +894,6 @@ export const CheckInsAndAnalytics: React.FC<CheckInsAndAnalyticsProps> = ({ user
                             );
                           }
                           return null;
-                        }}
-                      />
-
-                      {/* Grounded reference line */}
-                      <ReferenceLine
-                        y={7}
-                        stroke="#0d9488"
-                        strokeDasharray="4 4"
-                        strokeOpacity={0.7}
-                        label={{
-                          value: 'Grounded Baseline (7.0)',
-                          position: 'insideTopRight',
-                          fill: '#0f766e',
-                          fontSize: 10,
-                          fontWeight: 500,
                         }}
                       />
 

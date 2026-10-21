@@ -14,6 +14,7 @@ export interface UserProfile {
   status: AccountStatus;
   statusReason?: string;
   partnerName?: string;
+  partnerUserId?: string;
   partnerConnected: boolean;
   coupleCode?: string;
   reminderEnabled: boolean;
@@ -37,6 +38,7 @@ export interface TherapySession {
   id: string;
   mode: TherapyMode;
   userId: string;
+  partnerUserId?: string;
   title: string;
   startedAt: string;
   summary?: string;
@@ -103,6 +105,7 @@ export interface StoryComment {
 
 export interface SharedStory {
   id: string;
+  authorUserId?: string;
   title: string;
   category: string;
   storyType?: 'FIRST_DATE' | 'SOLO_DATE' | 'COUPLES_OUTING' | 'HEALING_JOURNEY';

@@ -27,7 +27,6 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
   const [sessions, setSessions] = useState<TherapySession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const [inputMessage, setInputMessage] = useState<string>('');
-  const [currentSpeaker, setCurrentSpeaker] = useState<'USER' | 'PARTNER'>('USER');
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [isVoiceOutputEnabled, setIsVoiceOutputEnabled] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -155,32 +154,20 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
         sessionId: currentSessionId,
         mode,
         message: text,
-        sender: mode === 'COUPLE' ? currentSpeaker : 'USER',
       });
 
       if (response.reply) {
-        // Update session in state
-        setSessions((prev) => {
-          return prev.map((s) => {
-            if (s.id === (response.session?.id || currentSessionId)) {
-              return {
-                ...s,
-                messages: [
-                  ...s.messages,
-                  {
-                    id: `user_${Date.now()}`,
-                    sessionId: s.id,
-                    sender: mode === 'COUPLE' ? currentSpeaker : 'USER',
-                    content: text,
-                    timestamp: new Date().toISOString(),
-                  },
-                  response.reply,
-                ],
-              };
-            }
-            return s;
-          });
-        });
+        if (response.session) {
+          setSessions((previous) => [
+            response.session!,
+            ...previous.filter((session) => session.id !== response.session!.id),
+          ]);
+          setCurrentSessionId(response.session.id);
+        } else {
+          setSessions((previous) => previous.map((session) => session.id === currentSessionId
+            ? { ...session, messages: [...session.messages, response.reply] }
+            : session));
+        }
 
         if (response.isCrisis) {
           openCrisisModal();
@@ -228,7 +215,7 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
   const suggestedPrompts =
     mode === 'COUPLE'
       ? [
-          'Jordan withdrew and I felt rejected and anxious',
+          'My partner withdrew and I felt rejected and anxious',
           'We had an argument about household chores and it escalated',
           'Help us practice a softened startup without criticism',
           'We feel emotionally disconnected after a stressful week',
@@ -284,11 +271,14 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
 
               <button
                 onClick={() => {
+                  if (!user.partnerConnected) return;
                   setMode('COUPLE');
                   const s = sessions.find((x) => x.mode === 'COUPLE');
                   if (s) setCurrentSessionId(s.id);
                 }}
-                className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg transition-colors ${
+                disabled={!user.partnerConnected}
+                title={!user.partnerConnected ? 'Link a partner account in your profile to enable couples sessions.' : undefined}
+                className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg transition-colors disabled:opacity-45 disabled:cursor-not-allowed ${
                   mode === 'COUPLE'
                     ? 'bg-white text-stone-900 shadow-xs'
                     : 'text-stone-600 hover:text-stone-900'
@@ -304,11 +294,11 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
               <div className="pt-2 border-t border-stone-100 space-y-2 text-xs text-stone-600">
                 <div className="flex items-center justify-between">
                   <span className="text-stone-500">Partner Linked:</span>
-                  <span className="font-semibold text-stone-900">{user.partnerName || 'Jordan Taylor'}</span>
+                  <span className="font-semibold text-stone-900">{user.partnerName || 'Your partner'}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-stone-500">Pairing Code:</span>
-                  <span className="font-mono text-stone-700">{user.coupleCode || 'HAVEN-8492'}</span>
+                  <span className="font-mono text-stone-700">{user.coupleCode || 'Not available'}</span>
                 </div>
                 <div className="p-2.5 bg-teal-50/70 border border-teal-100 rounded-lg text-teal-900 text-[11px] leading-relaxed">
                   Emotionally Focused Therapy rule: Speak from your own tender needs rather than analyzing your partner.
@@ -321,15 +311,29 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
           <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">Sessions</h3>
-              <button
-                onClick={startNewSession}
-                className="text-xs font-medium text-teal-800 hover:text-teal-900 flex items-center gap-1"
-              >
-                <span>New Session</span>
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={loadSessions}
+                  title="Refresh sessions"
+                  className="text-xs font-medium text-stone-500 hover:text-stone-900"
+                >
+                  Refresh
+                </button>
+                <button
+                  onClick={startNewSession}
+                  className="text-xs font-medium text-teal-800 hover:text-teal-900 flex items-center gap-1"
+                >
+                  <span>New Session</span>
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1.5 max-h-64 overflow-y-auto">
+              {sessions.length === 0 && (
+                <p className="py-5 text-center text-xs text-stone-500">
+                  Your saved conversations will appear here after you send a message.
+                </p>
+              )}
               {sessions.map((sess) => (
                 <button
                   key={sess.id}
@@ -400,7 +404,10 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5 bg-gradient-to-b from-stone-50/30 to-white">
             {activeSession?.messages.map((msg) => {
               const isAi = msg.sender === 'AI';
-              const isPartner = msg.sender === 'PARTNER';
+              const isOwnMessage = activeSession.userId === user.id
+                ? msg.sender === 'USER'
+                : activeSession.partnerUserId === user.id && msg.sender === 'PARTNER';
+              const isPartner = !isAi && !isOwnMessage;
 
               return (
                 <div
@@ -419,7 +426,7 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
                       {isAi
                         ? 'Harmony'
                         : isPartner
-                        ? `${user.partnerName || 'Partner (Jordan)'}`
+                        ? user.partnerName || 'Partner'
                         : `${user.name} (You)`}
                     </span>
                     <span>·</span>
@@ -508,36 +515,11 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
 
           {/* Input & Voice Controls Footer */}
           <div className="p-4 border-t border-stone-200 bg-white space-y-3">
-            {/* Couples Mode: Switch active speaker */}
+            {/* Couples sessions are shared by the linked accounts. */}
             {mode === 'COUPLE' && (
-              <div className="flex items-center justify-between text-xs pb-1">
-                <div className="flex items-center gap-2 text-stone-500">
-                  <span>Currently typing as:</span>
-                  <div className="flex items-center gap-1 p-0.5 bg-stone-100 rounded-lg">
-                    <button
-                      onClick={() => setCurrentSpeaker('USER')}
-                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                        currentSpeaker === 'USER'
-                          ? 'bg-teal-800 text-white'
-                          : 'text-stone-600 hover:text-stone-900'
-                      }`}
-                    >
-                      {user.name} (You)
-                    </button>
-                    <button
-                      onClick={() => setCurrentSpeaker('PARTNER')}
-                      className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                        currentSpeaker === 'PARTNER'
-                          ? 'bg-amber-600 text-white'
-                          : 'text-stone-600 hover:text-stone-900'
-                      }`}
-                    >
-                      {user.partnerName || 'Jordan (Partner)'}
-                    </button>
-                  </div>
-                </div>
-                <span className="text-[11px] text-stone-400">Take turns expressing feelings</span>
-              </div>
+              <p className="text-xs text-stone-500 pb-1">
+                This shared conversation is available to both linked accounts. Sign in on each person’s device to take turns.
+              </p>
             )}
 
             {/* Voice Recording Waveform Visualizer Banner */}
@@ -583,7 +565,7 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
                 onChange={(e) => setInputMessage(e.target.value)}
                 placeholder={
                   mode === 'COUPLE'
-                    ? `Share what you are feeling as ${currentSpeaker === 'USER' ? user.name : user.partnerName || 'Jordan'}...`
+                    ? `Share what you are feeling as ${user.name}...`
                     : 'Share what you are holding, or ask for guidance...'
                 }
                 className="flex-1 px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:outline-hidden focus:ring-2 focus:ring-teal-700 focus:bg-white transition-all text-stone-900 placeholder:text-stone-400"

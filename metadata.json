@@ -1,0 +1,7 @@
+{
+  "name": "Haven - Inclusive AI Therapy & Relationship Sanctuary",
+  "description": "An inclusive therapeutic sanctuary for individuals and couples with voice and text dialogue, confidential journals, proactive daily check-ins, guided exercises, supportive community circles, and safety guardrails.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+

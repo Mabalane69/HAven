@@ -464,39 +464,6 @@ INDIVIDUAL THERAPY DIRECTIVES:
 - Anchor reflections in somatic awareness (how their chest, stomach, or shoulders feel) and practical self-compassion.`;
 }
 
-// Fallback high-empathy generator if API key is not present or offline
-function generateFallbackTherapyReply(userInput: string, mode: 'INDIVIDUAL' | 'COUPLE', user: UserProfile): string {
-  const text = userInput.toLowerCase();
-
-  if (mode === 'COUPLE') {
-    if (text.includes('angry') || text.includes('argue') || text.includes('fight') || text.includes('frustrated')) {
-      return `When conflict flares between two people who care about each other, it is often because both of your nervous systems feel unheard or unappreciated. 
-
-Underneath this frustration, there is usually a tender attachment longing—a wish for closeness, reassurance, or safety. Let's take a slow breath together. Rather than asking who is right, what would happen if each of you shared what you are most afraid the other person isn't hearing?`;
-    }
-    return `Thank you for bringing this into our shared circle, ${user.name}. In Emotionally Focused Therapy, we recognize that every partner's withdrawal or reaction is an attempt to cope with emotional distress. 
-
-${user.partnerName || 'Your partner'}, how does it feel to hear ${user.name}'s perspective here? And what small gesture of safety can you both offer each other right now?`;
-  }
-
-  // Individual
-  if (text.includes('anxious') || text.includes('worry') || text.includes('panic') || text.includes('scared')) {
-    return `I hear the tension in what you're holding, ${user.name}. Anxiety has a way of convincing our minds that the worst-case scenario is already unfolding. 
-
-Let's pause right here and notice your body. Are your shoulders raised? Is your jaw clenched? Let them soften just five percent. What is one small, tangible fact in your immediate surroundings that reminds you that you are safe in this exact moment?`;
-  }
-
-  if (text.includes('sad') || text.includes('lonely') || text.includes('depressed') || text.includes('tired') || text.includes('heavy')) {
-    return `It sounds like you're carrying a very heavy weight right now, ${user.name}. I want to honor how exhausting that can be, especially when you feel like you have to keep moving forward despite it. 
-
-You don't need to put on a brave face here. What would it look like to give yourself permission to simply rest and feel whatever is present, without judging yourself for it?`;
-  }
-
-  return `Thank you for sharing that with me, ${user.name}. What you're experiencing is deeply human, and you deserve a space where every part of your experience is welcomed. 
-
-When you reflect on this situation, what part of you feels most in need of understanding or gentle care today?`;
-}
-
 // ==========================================
 // Express API Routes
 // ==========================================
@@ -770,6 +737,12 @@ app.post('/api/therapy/chat', async (req, res) => {
       });
     }
 
+    if (!ai) {
+      return res.status(503).json({
+        error: 'AI chat is not configured. Add a valid GEMINI_API_KEY to .env and restart the server.',
+      });
+    }
+
     // Normal safe message processing
     let session = sessions.find(
       (candidate) =>
@@ -799,10 +772,8 @@ app.post('/api/therapy/chat', async (req, res) => {
         }],
       };
       session.messages[0].sessionId = session.id;
-      sessions.unshift(session);
     }
 
-    // Append user message
     const userMsg: ChatMessage = {
       id: `msg_${Date.now()}`,
       sessionId: session.id,
@@ -811,49 +782,51 @@ app.post('/api/therapy/chat', async (req, res) => {
       timestamp: new Date().toISOString(),
       sentiment: 'neutral',
     };
-    session.messages.push(userMsg);
 
-    // Call Gemini Model if configured
-    let aiText = '';
-    let sentiment: 'positive' | 'neutral' | 'distress' | 'crisis' = 'positive';
+    const history = session.messages.slice(-12).map((priorMessage) => ({
+      role: priorMessage.sender === 'AI' ? 'model' as const : 'user' as const,
+      parts: [{
+        text: priorMessage.sender === 'AI'
+          ? priorMessage.content
+          : `${priorMessage.sender === 'USER' ? currentUser.name : currentUser.partnerName || 'Partner'}: ${priorMessage.content}`,
+      }],
+    }));
+    history.push({
+      role: 'user',
+      parts: [{
+        text: `${userMsg.sender === 'USER' ? currentUser.name : currentUser.partnerName || 'Partner'}: ${message}`,
+      }],
+    });
 
-    if (ai) {
-      try {
-        const systemInstruction = buildTherapySystemPrompt(mode as 'INDIVIDUAL' | 'COUPLE', currentUser);
-        
-        // Take recent 6 messages for context
-        const recentMessages = session.messages.slice(-6);
-        const conversationHistory = recentMessages
-          .map((m) => `${m.sender === 'AI' ? 'Harmony (Therapist)' : m.sender}: ${m.content}`)
-          .join('\n\n');
+    let aiText: string;
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: history,
+        config: {
+          systemInstruction: `${buildTherapySystemPrompt(mode as 'INDIVIDUAL' | 'COUPLE', currentUser)}
 
-        const prompt = `${conversationHistory}\n\nUser: ${message}\n\nHarmony (Therapist):`;
-
-        const generatePromise = ai.models.generateContent({
-          model: 'gemini-3.8-flash',
-          contents: prompt,
-          config: {
-            systemInstruction,
-            temperature: 0.65,
-          },
-        });
-
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('AI response timeout')), 3500)
-        );
-
-        const response: any = await Promise.race([generatePromise, timeoutPromise]);
-        aiText = response.text || '';
-      } catch (err: any) {
-        console.warn('Gemini API call timed out or failed, using high-empathy therapeutic fallback:', err.message);
-        aiText = generateFallbackTherapyReply(message, mode as 'INDIVIDUAL' | 'COUPLE', currentUser);
-      }
-    } else {
-      aiText = generateFallbackTherapyReply(message, mode as 'INDIVIDUAL' | 'COUPLE', currentUser);
+CONVERSATION REQUIREMENTS:
+- Read and respond directly to the latest message, using relevant details from the conversation history.
+- Do not repeat your opening or ask the same question again if it has already been answered.
+- If the user answers a previous question, acknowledge that answer and build on it.
+- Ask at most one focused follow-up question, and only when it helps move this conversation forward.`,
+          temperature: 0.65,
+          maxOutputTokens: 512,
+        },
+      });
+      aiText = response.text?.trim() || '';
+    } catch (error) {
+      console.error('Gemini therapy response failed:', error);
+      return res.status(502).json({
+        error: 'The AI could not complete its reply. Your message was not saved; please try again.',
+      });
     }
 
     if (!aiText) {
-      aiText = generateFallbackTherapyReply(message, mode as 'INDIVIDUAL' | 'COUPLE', currentUser);
+      return res.status(502).json({
+        error: 'The AI returned an empty reply. Your message was not saved; please try again.',
+      });
     }
 
     const aiMsg: ChatMessage = {
@@ -862,9 +835,11 @@ app.post('/api/therapy/chat', async (req, res) => {
       sender: 'AI',
       content: aiText,
       timestamp: new Date().toISOString(),
-      sentiment,
+      sentiment: 'positive',
     };
+    session.messages.push(userMsg);
     session.messages.push(aiMsg);
+    if (!sessions.includes(session)) sessions.unshift(session);
 
     res.json({
       success: true,

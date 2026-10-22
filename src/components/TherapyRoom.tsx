@@ -180,7 +180,8 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
       }
     } catch (err: any) {
       console.error('Chat error:', err);
-      setErrorBanner('Failed to deliver message. Please check your connection.');
+      setInputMessage(text);
+      setErrorBanner(err.message || 'Failed to deliver message. Please check your connection.');
     } finally {
       setIsLoading(false);
     }

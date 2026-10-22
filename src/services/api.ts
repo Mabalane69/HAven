@@ -103,7 +103,9 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    return res.json();
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'The AI could not reply.');
+    return data;
   },
 
   // Check-ins

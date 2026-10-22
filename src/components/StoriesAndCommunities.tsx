@@ -828,8 +828,10 @@ export const StoriesAndCommunities: React.FC<StoriesAndCommunitiesProps> = ({ us
           </div>
         </div>
       )}
-      {activeSubTab === 'circles' && activeCircle && (
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+      {activeSubTab === 'circles' && (activeCircle || isSuggestModalOpen || isAdminCreateTopicOpen) && (
+        <>
+          {activeCircle && (
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
           {/* Left Column: Circles Navigation List & Suggestion / Admin actions */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -1164,6 +1166,9 @@ export const StoriesAndCommunities: React.FC<StoriesAndCommunitiesProps> = ({ us
             </div>
           </div>
 
+            </div>
+          )}
+
           {/* User Suggest Community Modal */}
           {isSuggestModalOpen && (
             <div
@@ -1360,7 +1365,7 @@ export const StoriesAndCommunities: React.FC<StoriesAndCommunitiesProps> = ({ us
               </div>
             </div>
           )}
-        </div>
+        </>
       )}
     </div>
   );

@@ -253,7 +253,7 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
           {/* Therapy Mode Switcher */}
           <div className="p-4 bg-white border border-stone-200 rounded-2xl shadow-xs space-y-3">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500">Therapy Focus</h3>
-            <div className="grid grid-cols-2 gap-1.5 p-1 bg-stone-100 rounded-xl">
+            <div className={`grid ${user.partnerConnected ? 'grid-cols-2' : 'grid-cols-1'} gap-1.5 p-1 bg-stone-100 rounded-xl`}>
               <button
                 onClick={() => {
                   setMode('INDIVIDUAL');
@@ -270,24 +270,23 @@ export const TherapyRoom: React.FC<TherapyRoomProps> = ({ user, openCrisisModal 
                 <span>Individual</span>
               </button>
 
-              <button
-                onClick={() => {
-                  if (!user.partnerConnected) return;
-                  setMode('COUPLE');
-                  const s = sessions.find((x) => x.mode === 'COUPLE');
-                  if (s) setCurrentSessionId(s.id);
-                }}
-                disabled={!user.partnerConnected}
-                title={!user.partnerConnected ? 'Link a partner account in your profile to enable couples sessions.' : undefined}
-                className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg transition-colors disabled:opacity-45 disabled:cursor-not-allowed ${
-                  mode === 'COUPLE'
-                    ? 'bg-white text-stone-900 shadow-xs'
-                    : 'text-stone-600 hover:text-stone-900'
-                }`}
-              >
-                <Users className="w-3.5 h-3.5 text-teal-700" />
-                <span>Couples (EFT)</span>
-              </button>
+              {user.partnerConnected && (
+                <button
+                  onClick={() => {
+                    setMode('COUPLE');
+                    const s = sessions.find((x) => x.mode === 'COUPLE');
+                    if (s) setCurrentSessionId(s.id);
+                  }}
+                  className={`flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-medium rounded-lg transition-colors ${
+                    mode === 'COUPLE'
+                      ? 'bg-white text-stone-900 shadow-xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5 text-teal-700" />
+                  <span>Couples (EFT)</span>
+                </button>
+              )}
             </div>
 
             {/* Couples partner connection info */}
